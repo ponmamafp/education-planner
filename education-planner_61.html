@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>教育費プランナー by ぽん</title>
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.2/babel.min.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fafaf8;-webkit-text-size-adjust:100%;overflow-x:hidden}
+input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;outline:none;cursor:pointer;background:#d1cdc7}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#d1cdc7}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#d1cdc7;border:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#1c1917;cursor:pointer;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.2);margin-top:-8px}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#1c1917;cursor:pointer;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+table{border-collapse:collapse}
+@media(max-width:600px){
+  .chart-row{grid-template-columns:1fr !important}
+  .stage-grid{grid-template-columns:repeat(2,1fr) !important}
+  .slider-grid{grid-template-columns:1fr !important}
+  .summary-cards{grid-template-columns:1fr 1fr !important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect}=React;
+const {BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer,LineChart,Line,CartesianGrid,ReferenceLine}=Recharts;
+
+const STAGES=[
+  {id:"nursery",   label:"幼稚園",icon:"🍼",ages:"3〜5歳",  years:3,pub:185000, pri:347000 },
+  {id:"elementary",label:"小学校",icon:"📗",ages:"6〜11歳", years:6,pub:336000, pri:1828000},
+  {id:"middle",    label:"中学校",icon:"📘",ages:"12〜14歳",years:3,pub:542000, pri:1560000},
+  {id:"high",      label:"高校",  icon:"📙",ages:"15〜17歳",years:3,pub:598000, pri:1030000},
+  {id:"uni",       label:"大学",  icon:"🏛️",ages:"18〜21歳",years:4,pub:540000, pri:1020000,
+    priTypes:{liberal:{label:"私立文系",cost:1020000,years:4},science:{label:"私立理系",cost:1380000,years:4}}},
+];
+const SHIOKURI_MONTHLY=80000;
+const COLORS=["#2563eb","#d97706","#059669","#dc2626","#7c3aed"];
+const SUPPORTS=[
+  {tag:"返還不要",  color:"#059669",name:"高等教育の修学支援新制度（JASSO）",  body:"低所得世帯の大学授業料免除＋返還不要の奨学金。詳細は公式サイトで確認を。",              url:"https://www.jasso.go.jp/shogakukin/about/kyufu/index.html"},
+  {tag:"返還不要",  color:"#059669",name:"多子世帯の大学無償化（2025年度〜開始済）",   body:"子ども3人以上を同時に扶養する世帯が対象（所得制限なし）。上の子が就職などで扶養から外れ、同時扶養が2人以下になると対象外。詳細は公式サイトで確認を。",               url:"https://www.mext.go.jp/a_menu/koutou/hutankeigen/index.htm"},
+  {tag:"実質無償化",color:"#7c3aed",name:"高等学校等就学支援金",              body:"高校の授業料を国が支援する制度。公立・私立ともに対象。詳細・要件は公式サイトで確認を。",  url:"https://www.mext.go.jp/a_menu/shotou/mushouka/index.htm"},
+  {tag:"3〜5歳無償",color:"#7c3aed",name:"幼児教育・保育の無償化",            body:"3〜5歳の保育料が原則無償。詳細・要件は公式サイトで確認を。",              url:"https://www8.cao.go.jp/shoushi/shinseido/musyouka/index.html"},
+  {tag:"月1〜3万円",color:"#d97706",name:"児童手当（2024年10月〜拡充済）",     body:"中学生まで（拡充で高校生まで）毎月支給される手当。金額・要件は公式サイトで確認を。",                url:"https://www.cfa.go.jp/policies/jidouteate/"},
+  {tag:"無利子",    color:"#2563eb",name:"第一種奨学金（JASSO）",             body:"無利子の貸与型奨学金。学力・家計の基準あり。詳細は公式サイトで確認を。",                   url:"https://www.jasso.go.jp/shogakukin/about/taiyo/index.html"},
+  {tag:"有利子",    color:"#2563eb",name:"第二種奨学金（JASSO）",             body:"有利子の貸与型奨学金。第一種より採用基準が緩やか。詳細は公式サイトで確認を。",                 url:"https://www.jasso.go.jp/shogakukin/about/taiyo/index.html"},
+  {tag:"低金利",    color:"#dc2626",name:"国の教育ローン（日本政策金融公庫）",body:"日本政策金融公庫の低金利ローン。詳細・要件は公式サイトで確認を。",                        url:"https://www.jfc.go.jp/n/finance/search/ippan.html"},
+  {tag:"無料ツール",color:"#374151",name:"進学資金シミュレーター（JASSO）",   body:"JASSOの公式シミュレーター。給付型奨学金の対象かどうかの目安が確認できます。",           url:"https://simulation.jasso.go.jp/shingaku/"},
+  {tag:"2026年度〜",  color:"#059669",name:"公立小学校 給食費の実質無償化",         body:"公立小学校の給食費を国が支援する制度（2026年4月〜開始予定）。詳細は公式サイトで確認を。",    url:"https://www.mext.go.jp/a_menu/shotou/mushouka/index.htm"},
+];
+
+const getAge=(by,earlyBirth=false,currentAge=null)=>{
+  // currentAgeが指定されていればそれを使う（年齢直接選択モード）
+  if(currentAge!==null)return currentAge;
+  const now=new Date();
+  const schoolYear=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
+  return schoolYear-by;
+};
+const fmt=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
+const man=n=>`${Math.round(n/10000)}万`;
+const annualCost=(child,sid)=>{
+  const stage=STAGES.find(s=>s.id===sid);
+  if(sid==="uni"&&child.sel[sid]!=="pub"){
+    const t=child.sel[sid];
+    const pt=stage.priTypes[typeof t==="object"?t.type||"liberal":t]||stage.priTypes.liberal;
+    return pt.cost;
+  }
+  return child.sel[sid]==="pri"?stage.pri:stage.pub;
+};
+const uniYears=child=>{
+  const stage=STAGES.find(s=>s.id==="uni");
+  const sel=child.sel["uni"];
+  if(sel==="pub"||sel==="pri")return 4;
+  const t=typeof sel==="object"?sel.type||"liberal":sel;
+  return stage.priTypes[t]?.years||4;
+};
+const uniTotal=child=>{
+  const stage=STAGES.find(s=>s.id==="uni");
+  const sel=child.sel["uni"];
+  let years=4;
+  if(sel!=="pub"&&sel!=="pri"){
+    const t=typeof sel==="object"?sel.type||"liberal":sel;
+    years=stage.priTypes[t]?.years||4;
+  }
+  return annualCost(child,"uni")*years;
+};
+function stageAtAge(age){
+  if(age<3)return null;if(age<6)return STAGES[0];if(age<12)return STAGES[1];
+  if(age<15)return STAGES[2];if(age<18)return STAGES[3];if(age<22)return STAGES[4];
+  return null;
+}
+function monthlySchool(child,age){const s=stageAtAge(age);return s?Math.round(annualCost(child,s.id)/12):0;}
+function fv(p,m,r,y){if(y<=0)return p;if(r===0)return p+m*12*y;const rm=r/100/12,n=y*12;return Math.round(p*Math.pow(1+rm,n)+m*((Math.pow(1+rm,n)-1)/rm));}
+function needM(p,t,r,y){if(y<=0)return 0;if(r===0)return Math.ceil(Math.max(0,t-p)/(y*12));const rm=r/100/12,n=y*12;return Math.ceil(Math.max(0,(t-p*Math.pow(1+rm,n))/((Math.pow(1+rm,n)-1)/rm)));}
+
+const card={background:"#fff",borderRadius:16,boxShadow:"0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.04)",overflow:"hidden"};
+const cinput={width:"100%",border:"1.5px solid #e5e0d8",borderRadius:8,padding:"9px 11px",fontSize:14,background:"white"};
+const clbl={fontSize:11,fontWeight:700,color:"#78716c",letterSpacing:".04em"};
+const STORAGE_KEY="edu-planner-v1";
+
+function App(){
+  const [children,setChildren]=useState(()=>{
+    try{const d=localStorage.getItem(STORAGE_KEY);return d?JSON.parse(d):[];}catch{return[];}
+  });
+  const [adding,setAdding]=useState(false);
+  const [drawer,setDrawer]=useState(null);
+  const resultRefs=useRef({});
+
+  useEffect(()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(children));}catch{}},[children]);
+
+  const addChild=(name,birthYear,currentAge=null)=>{
+    const id=Date.now();
+    setChildren(p=>[...p,{id,name,birthYear,currentAge,color:COLORS[p.length%COLORS.length],
+      sel:{nursery:"pub",elementary:"pub",middle:"pub",high:"pub",uni:"pub"},
+      saved:0,monthly:10000,rate:3,shiokuri:false}]);
+    setAdding(false);
+    setTimeout(()=>resultRefs.current[id]?.scrollIntoView({behavior:"smooth",block:"start"}),200);
+  };
+  const upd=(id,patch)=>setChildren(p=>p.map(c=>c.id===id?{...c,...patch}:c));
+  const del=id=>setChildren(p=>p.filter(c=>c.id!==id));
+
+  return(
+    <div style={{fontFamily:"'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif",background:"#fafaf8",minHeight:"100vh",color:"#1c1917",paddingBottom:children.length?80:0}}>
+      <div style={{background:"#1c1917",color:"white",padding:"20px 16px 16px"}}>
+        <div style={{maxWidth:780,margin:"0 auto"}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:".14em",color:"#a8a29e",marginBottom:5}}>EDUCATION COST PLANNER</div>
+          <h1 style={{margin:0,fontSize:21,fontWeight:800}}>教育費プランナー <span style={{fontSize:13,fontWeight:600,color:"#a8a29e"}}>by ぽん</span></h1>
+          <p style={{margin:"5px 0 0",fontSize:12,color:"#a8a29e"}}>ぽんの家計改善ロードマップ 特典ツール ／ 子どもの年齢と進路を入力するだけ。毎月の費用と積み立て計画がすぐわかります。</p>
+          <p style={{margin:"8px 0 0",fontSize:10,color:"#78716c"}}>※ 費用データ出典：文部科学省「子供の学習費調査」（令和5年度・学習費総額）、全国大学生協連「学生生活実態調査」（2024年）</p>
+          <div style={{margin:"10px 0 0",display:"flex",gap:12,flexWrap:"wrap"}}>
+            <div style={{fontSize:10,color:"#a8a29e",background:"rgba(255,255,255,.08)",borderRadius:8,padding:"5px 10px",lineHeight:1.7}}>
+              <span style={{color:"#6ee7b7",fontWeight:700}}>✓ 含む</span>　授業料・給食費・塾・習い事の平均
+            </div>
+            <div style={{fontSize:10,color:"#a8a29e",background:"rgba(255,255,255,.08)",borderRadius:8,padding:"5px 10px",lineHeight:1.7}}>
+              <span style={{color:"#fca5a5",fontWeight:700}}>✕ 含まない</span>　入学金・制服・教材などの一時費用・大学生活費・受験費用
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{maxWidth:780,margin:"0 auto",padding:"16px 16px 24px",display:"grid",gap:16}}>
+        {!children.length&&!adding&&(
+          <div style={{textAlign:"center",padding:"56px 24px 48px"}}>
+            <div style={{fontSize:52,marginBottom:14}}>👶</div>
+            <div style={{fontSize:19,fontWeight:800,marginBottom:8}}>お子さまの情報を入力してください</div>
+            <div style={{fontSize:13,color:"#78716c",marginBottom:32,lineHeight:1.8}}>年齢と進路（公立・私立）を選ぶだけで<br/>毎月いくら必要かがすぐにわかります</div>
+            <button onClick={()=>setAdding(true)} style={{padding:"15px 36px",background:"#1c1917",color:"white",border:"none",borderRadius:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>＋ お子さまを追加する</button>
+          </div>
+        )}
+        {adding&&!children.length&&<AddForm color={COLORS[0]} onAdd={addChild} onCancel={()=>setAdding(false)}/>}
+        {children.map(c=>(
+          <div key={c.id} ref={el=>resultRefs.current[c.id]=el}>
+            <ChildSection child={c} upd={upd} onDelete={()=>del(c.id)}/>
+          </div>
+        ))}
+        {!!children.length&&!adding&&(
+          <button onClick={()=>setAdding(true)} style={{padding:"13px",background:"white",border:"2px dashed #d6d3d1",borderRadius:14,cursor:"pointer",color:"#a8a29e",fontSize:13,fontWeight:600}}>＋ もう一人追加する</button>
+        )}
+        {children.length>0&&(()=>{
+          const allTotal=children.reduce((sum,c)=>{
+            const age=getAge(c.birthYear,false,c.currentAge);
+            let total=0;
+            let counting=false;
+            const stageNow=stageAtAge(age);
+            for(const s of STAGES){
+              if(s.id===stageNow?.id){
+                const yearsLeft=s.id==="nursery"?Math.max(6-age,0):
+                                s.id==="elementary"?Math.max(12-age,0):
+                                s.id==="middle"?Math.max(15-age,0):
+                                s.id==="high"?Math.max(18-age,0):
+                                Math.max(22-age,0);
+                total+=annualCost(c,s.id)*yearsLeft;
+                counting=true;
+              } else if(counting){
+                const yrs=s.id==="uni"?uniYears(c):s.years;
+                total+=annualCost(c,s.id)*yrs;
+              }
+            }
+            if(!stageNow)total=STAGES.reduce((t,s)=>t+annualCost(c,s.id)*(s.id==="uni"?uniYears(c):s.years),0);
+            return sum+total;
+          },0);
+          return(
+            <div style={{background:"#f0ece6",borderRadius:16,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",border:"1px solid #d6d0c8"}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#78716c",marginBottom:2}}>🎓 子ども全員の残り総学費</div>
+                <div style={{fontSize:10,color:"#78716c"}}>学費合計（積立・入学一時費用は含まず）</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:28,fontWeight:800,color:"#1c1917",lineHeight:1}}>{man(allTotal)}円</div>
+                {children.length>1&&<div style={{fontSize:10,color:"#a8a29e",marginTop:2}}>{children.length}人分の合計</div>}
+              </div>
+            </div>
+          );
+        })()}
+        {!!children.length&&adding&&<AddForm color={COLORS[children.length%COLORS.length]} onAdd={addChild} onCancel={()=>setAdding(false)}/>}
+      </div>
+      {!!children.length&&(
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"white",borderTop:"1px solid #e5e0d8",boxShadow:"0 -2px 12px rgba(0,0,0,.08)",zIndex:100}}>
+          <div style={{maxWidth:780,margin:"0 auto",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {[{id:"plan",icon:"📅",label:"年次プラン",sub:"年ごとの学費一覧"},{id:"support",icon:"🎓",label:"支援制度",sub:"奨学金・補助金"}].map(t=>(
+              <button key={t.id} onClick={()=>setDrawer(d=>d===t.id?null:t.id)}
+                style={{padding:"10px 4px",border:"none",background:drawer===t.id?"#1c1917":"white",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,minHeight:56}}>
+                <span style={{fontSize:18}}>{t.icon}</span>
+                <span style={{fontSize:11,fontWeight:700,color:drawer===t.id?"white":"#44403c"}}>{t.label}</span>
+                <span style={{fontSize:9,color:drawer===t.id?"rgba(255,255,255,.6)":"#a8a29e"}}>{t.sub}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* drawer==="summary"&&<Drawer title="📊 家族全体サマリー" onClose={()=>setDrawer(null)}><FamilySummary children={children}/></Drawer> */}
+      {drawer==="plan"   &&<Drawer title="📅 年次プラン"       onClose={()=>setDrawer(null)}><YearlyPlan children={children}/></Drawer>}
+      {drawer==="support"&&<Drawer title="🎓 支援制度・奨学金" onClose={()=>setDrawer(null)}><SupportList/></Drawer>}
+      <Disclaimer/>
+    </div>
+  );
+}
+
+function AddForm({color,onAdd,onCancel}){
+  const [name,setName]=useState("");
+  const [age,setAge]=useState(6);
+  const AGE_LABELS=[
+    "妊娠中（〜1年後に誕生）",
+    "0歳","1歳","2歳",
+    "3歳・年少","4歳・年中","5歳・年長",
+    "6歳・小1","7歳・小2","8歳・小3","9歳・小4","10歳・小5","11歳・小6",
+    "12歳・中1","13歳・中2","14歳・中3",
+    "15歳・高1","16歳・高2","17歳・高3",
+    "18歳・大1","19歳・大2","20歳・大3","21歳・大4",
+  ];
+  const AGE_OFFSET=-1; // インデックス0=妊娠中(-1歳)
+  const now=new Date();
+  const schoolYear=now.getMonth()>=3?now.getFullYear():now.getFullYear()-1;
+  const realAge=age+(typeof AGE_OFFSET!=="undefined"?AGE_OFFSET:3);
+  const birthYear=schoolYear-realAge;
+  const stageNow=stageAtAge(realAge);
+  return(
+    <div style={{...card,padding:"16px",borderTop:`4px solid ${color}`}}>
+      <div style={{fontWeight:800,fontSize:15,marginBottom:18}}>👶 お子さまの情報</div>
+      <div style={{display:"grid",gap:16,marginBottom:20}}>
+        <div>
+          <div style={{...clbl,marginBottom:6}}>お名前（ニックネームでOK）</div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="例：たろう" style={cinput} autoFocus/>
+        </div>
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+            <span style={{...clbl}}>今の年齢</span>
+            <span style={{fontSize:22,fontWeight:800,color}}>{AGE_LABELS[age]}</span>
+          </div>
+          <input type="range" min={0} max={22} step={1} value={age}
+            onChange={e=>setAge(+e.target.value)}
+            style={{width:"100%",accentColor:color,cursor:"pointer"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#a8a29e",marginTop:4,overflow:"hidden"}}>
+            <span>妊娠中</span><span>幼稚園</span><span>小学校</span><span>中学</span><span>高校</span><span>大学</span><span>21歳</span>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={onCancel} style={{padding:"9px 16px",background:"#f5f5f4",border:"none",borderRadius:10,fontWeight:600,cursor:"pointer",color:"#44403c",fontSize:13}}>キャンセル</button>
+        <button onClick={()=>{if(name.trim())onAdd(name.trim(),birthYear,realAge)}}
+          style={{padding:"9px 24px",background:name.trim()?"#1c1917":"#d6d3d1",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:name.trim()?"pointer":"default"}}>
+          追加して結果を見る →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChildSection({child:c,upd,onDelete}){
+  const age=getAge(c.birthYear,false,c.currentAge);
+  const yrs=Math.max(18-age,0);
+  const target=uniTotal(c)+(c.shiokuri?SHIOKURI_MONTHLY*12*4:0);
+  const proj=fv(c.saved,c.monthly,c.rate,yrs);
+  const diff=proj-target;
+  const need=needM(c.saved,target,c.rate,yrs);
+  const schoolM=monthlySchool(c,age);
+  const shiokuriM=(c.shiokuri&&age>=18&&age<22)?SHIOKURI_MONTHLY:0;
+  const totalM=c.monthly+schoolM+shiokuriM;
+  const ok=diff>=0;
+
+  const burden=Array.from({length:Math.max(22-age,1)},(_,i)=>{
+    const a=age+i;
+    const isUni=a>=18&&a<22;return{age:`${a}歳`,学校費用:isUni?0:monthlySchool(c,a),積立:a<18?c.monthly:0,大学授業料:isUni?Math.round(annualCost(c,"uni")/12):0,仕送り:c.shiokuri&&isUni?SHIOKURI_MONTHLY:0};
+  });
+  const growth=Array.from({length:yrs+1},(_,i)=>({年:`${age+i}歳`,貯蓄額:fv(c.saved,c.monthly,c.rate,i),目標:target}));
+
+  return(
+    <div style={{display:"grid",gap:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:4}}>
+        <div style={{width:10,height:10,borderRadius:"50%",background:c.color,flexShrink:0}}/>
+        <span style={{fontWeight:800,fontSize:16,color:c.color}}>{c.name}</span>
+        <span style={{fontSize:12,color:"#a8a29e"}}>{age<0?"妊娠中":age+"歳"}{age>=0&&(yrs>0?"・大学まであと"+yrs+"年":age<22?"・大学在学中":"・卒業")}</span>
+        <button onClick={()=>{if(window.confirm(`${c.name}のデータを削除しますか？`))onDelete();}} style={{marginLeft:"auto",padding:"4px 10px",background:"#fef2f2",border:"none",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:600,color:"#b91c1c"}}>削除</button>
+      </div>
+
+      {/* 教育費トータル */}
+      <div style={{...card,padding:"18px 16px",borderTop:`4px solid ${c.color}`}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#78716c",marginBottom:4}}>💴 今月の教育費（合計）</div>
+        <div style={{fontSize:42,fontWeight:800,color:c.color,lineHeight:1,marginBottom:10}}>{fmt(totalM)}</div>
+        <div style={{display:"flex",gap:16,fontSize:12,color:"#78716c",flexWrap:"wrap"}}>
+          <span>🏫 学校費用 <strong style={{color:"#2563eb"}}>{fmt(schoolM)}</strong>（{stageAtAge(age)?.label??"-"}）</span>
+          <span>🏦 大学準備金の積立 <strong style={{color:"#8b5cf6"}}>{fmt(c.monthly)}</strong></span>
+          {c.shiokuri&&age>=18&&age<22&&<span>📦 仕送り <strong style={{color:"#d97706"}}>{fmt(SHIOKURI_MONTHLY)}</strong></span>}
+        </div>
+
+      </div>
+
+      <div style={{...card,padding:"14px 14px"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#78716c",marginBottom:4}}>📋 進路を設定</div>
+        <div className="stage-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7}}>
+          {STAGES.map(s=>{
+            const isPri=c.sel[s.id]==="pri";
+            if(s.id!=="uni"){
+              return(
+                <button key={s.id} onClick={()=>upd(c.id,{sel:{...c.sel,[s.id]:isPri?"pub":"pri"}})}
+                  style={{background:isPri?"#fffbeb":"#eff6ff",border:`2px solid ${isPri?"#f59e0b":c.color+"66"}`,borderRadius:12,padding:"10px 4px",cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:15,marginBottom:2}}>{s.icon}</div>
+                  <div style={{fontSize:10,fontWeight:700,marginBottom:1}}>{s.label}</div>
+                  <div style={{fontSize:9,color:"#a8a29e",marginBottom:4}}>{s.ages}</div>
+                  <div style={{display:"inline-block",background:isPri?"#f59e0b":c.color,color:"white",borderRadius:20,padding:"2px 7px",fontSize:9,fontWeight:700,marginBottom:3}}>
+                    {isPri?"私立":"公立"}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#44403c"}}>{man(annualCost(c,s.id))}円</div>
+                  <div style={{fontSize:9,color:"#a8a29e"}}>年間</div>
+                </button>
+              );
+            } else {
+              // 大学：タップで学部切り替え
+              const uniSel=c.sel["uni"];
+              const uniKeys=["pub",...Object.keys(s.priTypes)];
+              const uniIsPri=uniSel!=="pub";
+              return(
+                <button key={s.id}
+                  onClick={()=>{const cur=uniKeys.indexOf(uniSel);upd(c.id,{sel:{...c.sel,uni:uniKeys[(cur+1)%uniKeys.length]}});}}
+                  style={{background:uniIsPri?"#fffbeb":"#eff6ff",border:`2px solid ${uniIsPri?"#f59e0b":c.color+"66"}`,borderRadius:12,padding:"10px 4px",cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:15,marginBottom:2}}>{s.icon}</div>
+                  <div style={{fontSize:10,fontWeight:700,marginBottom:1}}>{s.label}</div>
+                  <div style={{fontSize:9,color:"#a8a29e",marginBottom:4}}>{s.ages}</div>
+                  <div style={{display:"inline-block",background:uniIsPri?"#f59e0b":c.color,color:"white",borderRadius:20,padding:"2px 7px",fontSize:9,fontWeight:700,marginBottom:3}}>
+                    {uniSel==="pub"?"国公立":s.priTypes[uniSel]?.label||uniSel}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#44403c"}}>{man(annualCost(c,s.id))}円</div>
+                  <div style={{fontSize:9,color:"#a8a29e"}}>年間</div>
+                </button>
+              );
+            }
+          })}
+        </div>
+      </div>
+
+      {/* 進路設定サマリー：選んだ進路の総額リアルタイム表示 */}
+      <div style={{background:"#f0ece6",borderRadius:14,padding:"14px 16px",display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
+        {STAGES.map(s=>{
+          const cost=annualCost(c,s.id);
+          const isPri=c.sel[s.id]==="pri";
+          return(
+            <div key={s.id} style={{textAlign:"center"}}>
+              <div style={{fontSize:10,color:"#78716c",marginBottom:2}}>{s.icon} {s.label}</div>
+              <div style={{fontSize:11,fontWeight:700,color:isPri?"#b45309":"#2563eb"}}>{man(cost*s.years)}円</div>
+              <div style={{fontSize:9,color:"#a8a29e"}}>{s.years}年間</div>
+            </div>
+          );
+        })}
+        <div style={{gridColumn:"1/-1",borderTop:"1px solid #d6d0c8",marginTop:8,paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#78716c",fontWeight:600,whiteSpace:"nowrap"}}>
+            {(()=>{
+              const stageNow=stageAtAge(age);
+              if(!stageNow)return "幼稚園〜大学 合計";
+              const stageLabel=stageNow.label;
+              return `${stageLabel}〜大学 合計（残り）`;
+            })()}
+          </span>
+          <span style={{fontSize:18,fontWeight:800,color:c.color}}>
+            {(()=>{
+              let total=0;
+              let counting=false;
+              const stageNow=stageAtAge(age);
+              for(const s of STAGES){
+                if(s.id===stageNow?.id){
+                  // 現在のステージは残り年数だけ計算
+                  const yearsLeft=s.id==="nursery"?Math.max(6-age,0):
+                                  s.id==="elementary"?Math.max(12-age,0):
+                                  s.id==="middle"?Math.max(15-age,0):
+                                  s.id==="high"?Math.max(18-age,0):
+                                  Math.max(22-age,0);
+                  total+=annualCost(c,s.id)*yearsLeft;
+                  counting=true;
+                } else if(counting){
+                  total+=annualCost(c,s.id)*s.years;
+                }
+              }
+              if(!stageNow)total=STAGES.reduce((sum,s)=>sum+annualCost(c,s.id)*s.years,0);
+              return man(total)+"円";
+            })()}
+          </span>
+        </div>
+      </div>
+
+
+
+      {/* 詳細トグルボタン */}
+      
+
+      <div style={{...card,padding:"16px 16px",borderTop:`4px solid ${c.color}`,background:"#fafaf8"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:10,borderBottom:"1px solid #e5e0d8"}}>
+          <span style={{fontSize:22}}>🏛️</span>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:"#1c1917",lineHeight:1.2}}>大学費用の積み立て計画{c.shiokuri?" （仕送り4年分含む）":""}</div>
+            <div style={{fontSize:10,color:"#a8a29e",marginTop:2}}>今月の学費とは別・18歳までに貯める分</div>
+          </div>
+        </div>
+        <div style={{fontSize:11,color:"#78716c",marginBottom:8}}>💡 今の貯蓄額と毎月の積立額を入れると、18歳時点の予測が出ます</div>
+        <div className="slider-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:14}}>
+          {[
+            {label:"現在の貯蓄額",key:"saved",  val:c.saved,  min:0,max:20000000,step:100000,disp:man(c.saved)+"円"},
+            {label:"月々の積立額",key:"monthly",val:c.monthly,min:0,max:100000, step:1000, disp:fmt(c.monthly)},
+          ].map(sl=>(
+            <div key={sl.key}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <span style={{...clbl,fontSize:12}}>{sl.label}</span>
+                <span style={{fontSize:18,fontWeight:800,color:c.color}}>{sl.disp}</span>
+              </div>
+              <input type="range" min={sl.min} max={sl.max} step={sl.step} value={sl.val}
+                onChange={e=>upd(c.id,{[sl.key]:+e.target.value})}
+                style={{width:"100%",accentColor:c.color,cursor:"pointer"}}/>
+            </div>
+          ))}
+        </div>
+        {/* 自動計算の提案ボタン */}
+        {yrs>0&&need>0&&need!==c.monthly&&(
+          <div style={{background:"#f0f9ff",borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+            <span style={{fontSize:11,color:"#0369a1"}}>💡 今から積み立てると月<strong>{fmt(need)}</strong>で達成できます</span>
+            <button onClick={()=>upd(c.id,{monthly:need})} style={{fontSize:11,fontWeight:700,color:"white",background:"#0369a1",border:"none",borderRadius:7,padding:"4px 10px",cursor:"pointer",flexShrink:0}}>
+              この金額をセット
+            </button>
+          </div>
+        )}
+        <div style={{marginBottom:16}}>
+          <div style={{...clbl,marginBottom:4}}>運用利率（年利）</div>
+          <div style={{fontSize:10,color:"#a8a29e",marginBottom:7}}>NISAなら3〜5%が目安</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[[0,"運用なし"],[0.3,"0.3%"],[1,"1%"],[3,"3%"],[5,"5%"]].map(([v,l])=>(
+              <button key={v} onClick={()=>upd(c.id,{rate:v})}
+                style={{padding:"5px 12px",border:`1.5px solid ${c.rate===v?c.color:"#e5e0d8"}`,borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:c.rate===v?c.color:"white",color:c.rate===v?"white":"#44403c"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{background:ok?"#f0fdf4":"#fef2f2",borderRadius:12,padding:"14px 16px",borderLeft:`4px solid ${ok?"#16a34a":"#dc2626"}`}}>
+          <div style={{fontWeight:800,fontSize:16,color:ok?"#15803d":"#b91c1c",marginBottom:4}}>
+            {ok?`✅ 18歳時点で ${man(proj)}円 貯まる見込み`:`⚠️ ${man(-diff)}円 不足する見込み`}
+          </div>
+          <div style={{fontSize:12,color:"#57534e",marginBottom:12}}>
+            {ok?`目標 ${man(target)}円 を ${man(diff)}円 上回ります`:`月積立を ${fmt(need)} にすると目標達成できます`}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            {[
+              {label:"積み立て目標",   val:man(target)+"円",color:"#dc2626"},
+              {label:"18歳時点の予測", val:man(proj)+"円", color:ok?"#16a34a":"#dc2626"},
+              {label:"目標達成の月積立",val:fmt(need),      color:c.color},
+            ].map((k,i)=>(
+              <div key={i} style={{background:"rgba(0,0,0,.06)",borderRadius:9,padding:"9px 11px",borderLeft:`3px solid ${k.color}`}}>
+                <div style={{fontSize:10,color:"#78716c",marginBottom:3,fontWeight:600}}>{k.label}</div>
+                <div style={{fontSize:16,fontWeight:800,color:k.color}}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+
+
+    </div>
+  );
+}
+
+function Drawer({title,onClose,children}){
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:200,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+      <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,.35)"}} onClick={onClose}/>
+      <div style={{position:"relative",background:"white",borderRadius:"20px 20px 0 0",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,.15)"}}>
+        <div style={{position:"sticky",top:0,background:"white",padding:"14px 16px 12px",borderBottom:"1px solid #f5f5f4",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontWeight:800,fontSize:15}}>{title}</div>
+          <button onClick={onClose} style={{background:"#f5f5f4",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:14,color:"#78716c"}}>✕</button>
+        </div>
+        <div style={{padding:"12px 14px 80px"}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function FamilySummary({children}){
+  if(!children.length)return <div style={{textAlign:"center",padding:32,color:"#a8a29e"}}>お子さまを追加すると表示されます</div>;
+  const childTarget=c=>uniTotal(c)+(c.shiokuri?SHIOKURI_MONTHLY*12*4:0);
+  const childNeed=c=>needM(c.saved,childTarget(c),c.rate,Math.max(18-getAge(c.birthYear,false,c.currentAge),0));
+  const calcTotal=c=>{
+    const age=getAge(c.birthYear,false,c.currentAge);
+    let total=0;
+    for(let a=age;a<22;a++){
+      const stage=stageAtAge(a);
+      if(stage)total+=annualCost(c,stage.id);
+      if(c.shiokuri&&a>=18&&a<22)total+=SHIOKURI_MONTHLY*12;
+      if(a<18)total+=c.monthly*12;
+    }
+    return total;
+  };
+  const tTotal=children.reduce((s,c)=>s+calcTotal(c),0);
+  const tS=children.reduce((s,c)=>s+monthlySchool(c,getAge(c.birthYear,false,c.currentAge)),0);
+  const tM=children.reduce((s,c)=>s+c.monthly,0);
+  const tT=children.reduce((s,c)=>s+childTarget(c),0);
+  const tSd=children.reduce((s,c)=>s+c.saved,0);
+  const tN=children.reduce((s,c)=>s+childNeed(c),0);
+  return(
+    <div style={{display:"grid",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[
+          {icon:"💴",label:"今月の教育費（全員）",val:fmt(tS+tM),   sub:`学校${fmt(tS)}＋積立${fmt(tM)}`,  color:"#1c1917"},
+          {icon:"📋",label:"家計負担の総額（目安）", val:man(tTotal)+"円",sub:"学費＋積立＋仕送りの合計",                 color:"#0369a1"},
+          {icon:"🎯",label:"大学費用の目標合計",  val:man(tT)+"円", sub:`${children.length}人分・仕送り込み`,color:"#dc2626"},
+          {icon:"🏦",label:"現在の貯蓄合計",      val:man(tSd)+"円",sub:`目標の${tT>0?Math.round(tSd/tT*100):0}%`,color:"#16a34a"},
+          {icon:"📅",label:"必要な月積立（合計）",val:fmt(tN),      sub:"今から積み立てると目標に届く金額",  color:"#7c3aed"},
+        ].map((k,i)=>(
+          <div key={i} style={{padding:"14px 16px",background:"white",borderRadius:14,border:`1px solid #e5e0d8`,borderLeft:`4px solid ${k.color}`,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#78716c",marginBottom:6}}>{k.icon} {k.label}</div>
+            <div style={{fontSize:20,fontWeight:800,color:k.color,lineHeight:1.1}}>{k.val}</div>
+            <div style={{fontSize:11,color:"#a8a29e",marginTop:4}}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontWeight:800,fontSize:13,color:"#1c1917"}}>📊 子ども別・今から卒業までのトータルと積立状況</div>
+      {children.map(c=>{
+        const age=getAge(c.birthYear,false,c.currentAge),yrs=Math.max(18-age,0);
+        const tgt=childTarget(c);
+        const proj=fv(c.saved,c.monthly,c.rate,yrs);
+        const ok=proj>=tgt;
+        const savPct=tgt>0?Math.min(c.saved/tgt*100,100):0;
+        const projPct=tgt>0?Math.min(proj/tgt*100,100):0;
+        const need=childNeed(c);
+        const cTotal=calcTotal(c);
+        return(
+          <div key={c.id} style={{background:"white",borderRadius:14,padding:"14px 16px",border:"1px solid #e5e0d8",borderLeft:`4px solid ${c.color}`,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div>
+                <span style={{fontWeight:800,fontSize:15,color:c.color}}>{c.name}</span>
+                <span style={{fontSize:12,color:"#a8a29e",marginLeft:6}}>{age}歳{yrs>0?"・あと"+yrs+"年":"・積立期間終了"}</span>
+                {c.shiokuri&&<span style={{fontSize:10,background:"#fff7ed",color:"#d97706",borderRadius:99,padding:"1px 7px",marginLeft:6,fontWeight:700}}>仕送りあり</span>}
+              </div>
+              {yrs>0&&<span style={{fontSize:12,fontWeight:800,color:ok?"#16a34a":"#dc2626",background:ok?"#f0fdf4":"#fef2f2",borderRadius:20,padding:"3px 12px"}}>
+                {ok?"✅ 達成見込み":"⚠️ 不足"}
+              </span>}
+            </div>
+            <div style={{display:"flex",gap:12,fontSize:11,color:"#78716c",marginBottom:10,flexWrap:"wrap"}}>
+              <span>🎯 目標 <strong style={{color:"#1c1917"}}>{man(tgt)}円</strong></span>
+              <span style={{color:"#a8a29e"}}>（大学授業料 {man(uniTotal(c))}円{c.shiokuri?` ＋仕送り ${man(SHIOKURI_MONTHLY*12*4)}円`:""}）</span>
+            </div>
+            <div style={{marginBottom:7}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#78716c",marginBottom:3}}>
+                <span>現在の貯蓄</span><span style={{fontWeight:700}}>{man(c.saved)}円</span>
+              </div>
+              <div style={{background:"#d1cdc7",borderRadius:99,height:10,border:"1px solid #c0bbb4"}}>
+                <div style={{height:"100%",width:`${savPct}%`,background:c.color,borderRadius:99,opacity:0.5}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:ok?0:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#78716c",marginBottom:3}}>
+                <span>18歳（大学入学時）に貯まっている予測</span>
+                <span style={{fontWeight:800,color:ok?"#16a34a":"#dc2626"}}>{man(proj)}円
+                  <span style={{fontWeight:400,color:"#a8a29e",marginLeft:4}}>/ 目標 {man(tgt)}円</span>
+                </span>
+              </div>
+              <div style={{background:"#d1cdc7",borderRadius:99,height:10,position:"relative",border:"1px solid #c0bbb4"}}>
+                <div style={{height:"100%",width:`${projPct}%`,background:ok?"#16a34a":"#ef4444",borderRadius:99}}/>
+                <div style={{position:"absolute",right:0,top:-4,width:3,height:16,background:"#dc2626",borderRadius:2}}/>
+              </div>
+            </div>
+            {!ok&&yrs>0&&(
+              <div style={{fontSize:12,color:"#b91c1c",fontWeight:600,marginTop:4}}>
+                → 月積立を <strong>{fmt(need)}</strong> にすると達成できます
+                <span style={{fontWeight:400,color:"#a8a29e",marginLeft:4}}>（現在 {fmt(c.monthly)} / 月 ＋{fmt(need-c.monthly)}不足）</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* 子ども別グラフ - 一時非表示
+      <div style={{marginTop:4}}>
+        <div style={{fontWeight:800,fontSize:13,color:"#1c1917",marginBottom:10}}>📊 子ども別・年齢別の月々の家計負担と貯蓄推移</div>
+        {children.map(c=>{
+          const age=getAge(c.birthYear,false,c.currentAge);
+          const burden=Array.from({length:Math.max(22-age,1)},(_,i)=>{
+            const a=age+i;
+            const isUni=a>=18&&a<22;
+            return{age:`${a}歳`,学校費用:isUni?0:monthlySchool(c,a),積立:a<18?c.monthly:0,大学授業料:isUni?Math.round(annualCost(c,"uni")/12):0,仕送り:c.shiokuri&&isUni?SHIOKURI_MONTHLY:0};
+          });
+          const yrs=Math.max(18-age,0);
+          const tgt=uniTotal(c)+(c.shiokuri?SHIOKURI_MONTHLY*12*4:0);
+          const growth=Array.from({length:yrs+1},(_,i)=>({年:`${age+i}歳`,貯蓄額:fv(c.saved,c.monthly,c.rate,i),目標:tgt}));
+          return(
+            <div key={c.id} style={{marginBottom:16}}>
+              <div style={{fontSize:12,fontWeight:700,color:c.color,marginBottom:8}}>{c.name}</div>
+              <div className="chart-row" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div style={{background:"white",borderRadius:14,padding:"12px",border:"1px solid #e5e0d8"}}>
+                  <div style={{fontWeight:700,fontSize:11,marginBottom:1}}>月々の家計負担</div>
+                  <div style={{fontSize:9,color:"#a8a29e",marginBottom:6}}>学校費用（青）積立（紫）大学授業料（赤）仕送り（橙）</div>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <BarChart data={burden} barSize={10} margin={{top:4,right:4,left:-22,bottom:0}}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ee" vertical={false}/>
+                      <XAxis dataKey="age" tick={{fontSize:8}} axisLine={false} tickLine={false} interval={2}/>
+                      <YAxis tick={{fontSize:8}} tickFormatter={v=>`${v/10000}万`} axisLine={false} tickLine={false}/>
+                      <Tooltip formatter={(v,n)=>[fmt(v),n]} contentStyle={{fontSize:11,borderRadius:8}}/>
+                      <Bar dataKey="学校費用" stackId="a" fill="#3b82f6"/>
+                      <Bar dataKey="積立"     stackId="a" fill="#8b5cf6"/>
+                      <Bar dataKey="大学授業料" stackId="a" fill="#ef4444"/>
+                      <Bar dataKey="仕送り"   stackId="a" fill="#d97706" radius={[3,3,0,0]}/>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                {yrs>0&&<div style={{background:"white",borderRadius:14,padding:"12px",border:"1px solid #e5e0d8"}}>
+                  <div style={{fontWeight:700,fontSize:11,marginBottom:1}}>大学費用の貯蓄推移</div>
+                  <div style={{fontSize:9,color:"#a8a29e",marginBottom:6}}>18歳時点で赤い目標ラインを超えていればOK</div>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <LineChart data={growth} margin={{top:4,right:8,left:-22,bottom:0}}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ee"/>
+                      <XAxis dataKey="年" tick={{fontSize:8}} axisLine={false} tickLine={false}/>
+                      <YAxis tick={{fontSize:8}} tickFormatter={v=>`${v/10000}万`} axisLine={false} tickLine={false}/>
+                      <Tooltip formatter={v=>[man(v)+"円",""]} contentStyle={{fontSize:11,borderRadius:8}}/>
+                      <Line type="monotone" dataKey="貯蓄額" stroke={c.color} strokeWidth={2.5} dot={false}/>
+                      <Line type="monotone" dataKey="目標" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 3" dot={false}/>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      */}
+    </div>
+  );
+}
+
+function YearlyPlan({children}){
+  if(!children.length)return <div style={{textAlign:"center",padding:32,color:"#a8a29e"}}>お子さまを追加すると表示されます</div>;
+  const thisYear=new Date().getFullYear();
+  const youngestAge=Math.min(...children.map(c=>getAge(c.birthYear,false,c.currentAge)));
+  const endYear=thisYear+Math.max(22-youngestAge,0);
+  const years=Array.from({length:endYear-thisYear+1},(_,i)=>thisYear+i);
+  const ENTRY={3:"幼稚園",6:"小学校",12:"中学",15:"高校",18:"大学"};
+  const childTarget=c=>uniTotal(c)+(c.shiokuri?SHIOKURI_MONTHLY*12*4:0);
+  const childFv=c=>fv(c.saved,c.monthly,c.rate,Math.max(18-getAge(c.birthYear,false,c.currentAge),0));
+
+  const rows=years.map(yr=>{
+    const offset=yr-thisYear;
+    let schoolSum=0;
+    let monthlyTotal=0;
+    const detail=children.map(c=>{
+      const age=getAge(c.birthYear,false,c.currentAge)+offset;
+      const stage=stageAtAge(age);
+      const schoolAnnual=stage?annualCost(c,stage.id):0;
+      const shiokuriAnnual=c.shiokuri&&age>=18&&age<22?SHIOKURI_MONTHLY*12:0;
+      schoolSum+=schoolAnnual+shiokuriAnnual;
+      if(age<18)monthlyTotal+=c.monthly;
+      const entryLabel=ENTRY[age]||null;
+      // 大学入学年：実際に必要な準備金と貯蓄予測
+      const yearsUntil18=Math.max(18-getAge(c.birthYear,false,c.currentAge),0);
+      const uniCheck=age===18?{
+        target:childTarget(c),
+        proj:fv(c.saved,c.monthly,c.rate,yearsUntil18)
+      }:null;
+      return{name:c.name,age,stage,schoolAnnual,shiokuriAnnual,entryLabel,uniCheck,color:c.color,childSel:c.sel,childMonthly:c.monthly,childSaved:c.saved,childRate:c.rate};
+    });
+    return{yr,detail,schoolSum,monthlyTotal};
+  });
+
+
+  const thS={padding:"7px 8px",fontSize:10,fontWeight:700,color:"#78716c",borderBottom:"2px solid #e5e0d8",textAlign:"right",whiteSpace:"nowrap",background:"#fafaf8"};
+  const tdS={padding:"8px 8px",fontSize:12,textAlign:"right",borderBottom:"1px solid #f0ece6",whiteSpace:"nowrap",verticalAlign:"middle"};
+
+  return(
+    <div style={{display:"grid",gap:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+  
+      </div>
+      {/* 集計レンジ選択 */}
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",background:"white"}}>
+          <thead>
+            <tr>
+              <th style={{...thS,textAlign:"left"}}>年</th>
+              {children.map(c=>(
+                <th key={c.id} style={{...thS,textAlign:"center",color:c.color,borderLeft:"1px solid #e5e0d8"}}>{c.name}</th>
+              ))}
+              <th style={{...thS,borderLeft:"2px solid #e5e0d8",color:"#dc2626",fontSize:13}}>年の合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r=>{
+              const isNow=r.yr===thisYear;
+              const hasEntry=r.detail.some(d=>d.entryLabel);
+              return(
+                <tr key={r.yr} style={{background:isNow?"#eff6ff":hasEntry?"#fffbeb":"white"}}>
+                  <td style={{...tdS,textAlign:"left",fontWeight:isNow?800:hasEntry?700:400,color:isNow?"#2563eb":hasEntry?"#d97706":"#1c1917",minWidth:52}}>
+                    {r.yr}
+                    {isNow&&<span style={{fontSize:9,background:"#2563eb",color:"white",borderRadius:99,padding:"1px 5px",marginLeft:4}}>今年</span>}
+                  </td>
+                  {r.detail.map(d=>(
+                    <td key={d.name} style={{...tdS,textAlign:"center",borderLeft:"1px solid #e5e0d8",padding:"10px 6px"}}>
+                      {/* 年齢・学校 */}
+                      <div style={{fontSize:11,color:"#a8a29e",marginBottom:d.entryLabel||d.schoolAnnual>0||d.shiokuriAnnual>0?4:0}}>
+                        {d.age<0?"妊娠中":d.age+"歳"}{d.age>=0&&d.stage?" · "+d.stage.label:""}
+                      </div>
+                      {/* 入学年バッジ */}
+                      {d.entryLabel&&(()=>{
+                        const costs={"幼稚園":{pub:5,pri:15},"小学校":{pub:10,pri:30},"中学":{pub:5,pri:30},"高校":{pub:10,pri:30},"大学":{pub:30,pri:50}};
+                        const c=costs[d.entryLabel];
+                        const isPri=children.find(ch=>ch.name===d.name)?.sel[d.stage?.id]==="pri";
+                        const cost=c?isPri?c.pri:c.pub:0;
+                        return(
+                          <div style={{marginBottom:5}}>
+                            <div style={{fontSize:11,fontWeight:800,color:"#d97706",background:"#fff7ed",borderRadius:6,padding:"2px 8px",display:"inline-block"}}>
+                              🎒 {d.entryLabel}入学
+                            </div>
+                            <div style={{fontSize:10,color:"#92400e",marginTop:2}}>
+                              ＋入学費用 別途
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* 年間学費（青字） */}
+                      {d.schoolAnnual>0&&(
+                        <div style={{fontWeight:800,color:"#1d4ed8",fontSize:14,marginBottom:d.shiokuriAnnual>0?2:0}}>
+                          {man(d.schoolAnnual)}円
+                          <span style={{fontSize:9,fontWeight:400,color:"#93c5fd",marginLeft:3}}>/ 年</span>
+                        </div>
+                      )}
+                      {/* 仕送り */}
+                      {d.shiokuriAnnual>0&&(
+                        <div style={{fontSize:11,color:"#d97706",fontWeight:600}}>
+                          仕送り {man(d.shiokuriAnnual)}円
+                        </div>
+                      )}
+                      {/* 積立バッジ（大学在学中） */}
+                      {d.uniCheck&&(()=>{
+                        const ok=d.uniCheck.proj>=d.uniCheck.target;
+                        if(d.uniCheck.isEntry){
+                          return(
+                            <div style={{marginTop:4,fontSize:10,fontWeight:700,color:"white",background:ok?"#16a34a":"#dc2626",borderRadius:6,padding:"3px 8px",lineHeight:1.5}}>
+                              {ok?"✅ 積立 達成！":"⚠️ 積立 不足"}
+                              <div style={{fontSize:9,fontWeight:400,opacity:0.9}}>
+                                目標{man(d.uniCheck.target)} → 予測{man(d.uniCheck.proj)}円
+                              </div>
+                              <div style={{fontSize:9,fontWeight:400,opacity:0.85}}>
+                                ※ この先4年間の学費に充てていきます
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return(
+                            <div style={{marginTop:4,fontSize:10,fontWeight:700,color:ok?"#16a34a":"#dc2626",background:ok?"#f0fdf4":"#fef2f2",borderRadius:6,padding:"3px 8px"}}>
+                              {ok?"✅ 積立完了":"⚠️ 積立不足で入学"}
+                            </div>
+                          );
+                        }
+                      })()}
+
+                    </td>
+                  ))}
+                  <td style={{...tdS,borderLeft:"2px solid #e5e0d8",fontWeight:800,fontSize:14,color:r.schoolSum>0?"#dc2626":"#a8a29e"}}>
+                    {r.schoolSum>0?man(r.schoolSum)+"円":"—"}
+                    {r.schoolSum>0&&(()=>{
+                      const schoolMonthly=r.schoolSum/12;
+                      const schoolManDisplay=(Math.round(schoolMonthly/1000)/10).toFixed(1);
+                      const tsekiMan=r.monthlyTotal>0?(Math.round(r.monthlyTotal/1000)/10).toFixed(1):null;
+                      return(
+                        <div style={{marginTop:3}}>
+                          <div style={{fontSize:11,fontWeight:400,color:"#a8a29e"}}>授業料等 月{schoolManDisplay}万円</div>
+                          {tsekiMan&&<div style={{fontSize:11,fontWeight:700,color:"#7c3aed",marginTop:1}}>＋積立 {tsekiMan}万円/月</div>}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SupportList(){
+  return(
+    <div style={{display:"grid",gap:10}}>
+      <div style={{padding:"10px 12px",background:"#fef9c3",borderRadius:10,fontSize:12,color:"#713f12"}}>💡 各制度の詳細は必ず公式サイトでご確認ください。制度は毎年度改定されます。</div>
+      {SUPPORTS.map(s=>(
+        <div key={s.name} style={{padding:"14px",background:"#fafaf8",borderRadius:12,borderLeft:`3px solid ${s.color}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
+            <span style={{fontWeight:700,fontSize:13}}>{s.name}</span>
+            <span style={{background:s.color,color:"white",borderRadius:20,padding:"1px 9px",fontSize:11,fontWeight:700}}>{s.tag}</span>
+          </div>
+          <p style={{margin:"0 0 8px",fontSize:12,color:"#57534e",lineHeight:1.7}}>{s.body}</p>
+          <a href={s.url} target="_blank" rel="noopener noreferrer"
+            style={{fontSize:12,color:s.color,fontWeight:700,textDecoration:"none",border:`1px solid ${s.color}`,borderRadius:7,padding:"4px 12px",background:"white",display:"inline-block"}}>
+            詳細は公式サイトへ ↗
+          </a>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Disclaimer(){
+  return(
+    <div style={{maxWidth:780,margin:"0 auto",padding:"16px 16px 40px",textAlign:"center"}}>
+      <div style={{fontSize:10,color:"#a8a29e",lineHeight:1.8,marginBottom:16}}>
+        ※ 費用データの出典：文部科学省「子供の学習費調査（令和5年度）」（幼稚園〜高校）／文部科学省「私立大学入学者に係る初年度学生納付金等調査（令和5年度）」（大学）
+        ※ 本ツールは公的統計データをもとにした目安であり、実際の費用は家庭の状況により異なります。投資・資産運用はご自身の判断と責任のもとで行ってください。
+      </div>
+      <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:10}}>
+        <a href="https://www.threads.net/@pon.mama_fp" target="_blank" rel="noopener noreferrer"
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"#1c1917",color:"white",borderRadius:99,textDecoration:"none",fontSize:12,fontWeight:700}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.876-6.43 2.519-8.482C5.851 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.298-.883-2.363-.89h-.037c-.749 0-1.971.169-2.853 1.218l-1.498-1.317c1.257-1.432 3.13-2.197 5.348-2.197h.05c3.668.03 5.9 2.117 6.182 5.806.023.31.035.621.035.932 0 2.5-.787 4.573-2.343 6.071-1.509 1.454-3.574 2.198-6.143 2.218z"/></svg>
+          Threads
+        </a>
+        <a href="https://www.instagram.com/pon.mama_fp" target="_blank" rel="noopener noreferrer"
+          style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"white",borderRadius:99,textDecoration:"none",fontSize:12,fontWeight:700}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+          Instagram
+        </a>
+      </div>
+      <div style={{fontSize:11,color:"#a8a29e"}}>@pon.mama_fp</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
