@@ -11,7 +11,7 @@
 <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#fafaf8;-webkit-text-size-adjust:100%;overflow-x:hidden}
@@ -129,7 +129,7 @@ function App(){
   const del=id=>setChildren(p=>p.filter(c=>c.id!==id));
 
   return(
-    <div style={{fontFamily:"'Zen Maru Gothic','M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Noto Sans JP',sans-serif",background:"#fafaf8",minHeight:"100vh",color:"#1c1917",paddingBottom:children.length?80:0}}>
+    <div style={{fontFamily:"'Inter','Noto Sans JP','Hiragino Kaku Gothic ProN',sans-serif",background:"#fafaf8",minHeight:"100vh",color:"#1c1917",paddingBottom:children.length?80:0}}>
       <div style={{background:"#1c1917",color:"white",padding:"20px 16px 16px"}}>
         <div style={{maxWidth:780,margin:"0 auto"}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:".14em",color:"#a8a29e",marginBottom:5}}>EDUCATION COST PLANNER</div>
