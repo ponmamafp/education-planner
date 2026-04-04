@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPMincho:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
-<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react@182.0/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.2/babel.min.js"></script>
 <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -238,7 +238,7 @@ function AddForm({color,onAdd,onCancel}){
     if(realAge<0) return "妊娠中（〜1年後に誕生）";
     if(realAge<3) return `${realAge}歳`;
     const gradeIdx=realAge-(isBeforeApril?4:3);
-    const birthSchoolYear=schoolYear-realAge;
+    const birthSchoolYear=isBeforeApril ? schoolYear-realAge : schoolYear-realAge-1;
     if(gradeIdx<0) return `${realAge}歳`;
     const grade=gradeLabels[Math.min(gradeIdx,gradeLabels.length-1)]||"";
     return `${birthSchoolYear}年度生まれ（${realAge}歳・${grade}）`;
