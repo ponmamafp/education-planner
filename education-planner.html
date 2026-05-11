@@ -434,7 +434,7 @@ function ChildSection({child:c,upd,onDelete,onOpenSupport}){
       <div style={{background:"#f0ece6",borderRadius:14,padding:"14px 16px",display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
         {STAGES.map(s=>{
           const cost=annualCost(c,s.id);
-          const isPri=c.sel[s.id]==="pri";
+          const isPri=s.id==="uni"?c.sel.uni!=="pub":c.sel[s.id]==="pri";
           return(
             <div key={s.id} style={{textAlign:"center"}}>
               <div style={{fontSize:10,color:"#78716c",marginBottom:2}}>{s.label}</div>
@@ -491,10 +491,9 @@ function ChildSection({child:c,upd,onDelete,onOpenSupport}){
             <div style={{fontSize:10,color:"#a8a29e",marginTop:2}}>今月の学費とは別・18歳までに貯める分</div>
           </div>
         </div>
-        <div style={{fontSize:11,color:"#78716c",marginBottom:8}}>💡 今の貯蓄額と毎月の積立額を入れると、18歳時点の予測が出ます</div>
         <div className="slider-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:14}}>
           {[
-            {label:"現在の貯蓄額",sub:"※ 教育費に使える金額だけを入れてください。「生活防衛資金（万一に備えた現金、生活費6ヶ月分が目安）」や住宅・老後の貯金は除く",key:"saved",  val:c.saved,  min:0,max:20000000,step:100000,disp:man(c.saved)+"円"},
+            {label:"現在の貯蓄額",sub:"※ 教育費に使える分のみ。生活防衛資金（生活費6ヶ月分）・住宅・老後の貯金は除く",key:"saved",  val:c.saved,  min:0,max:20000000,step:100000,disp:man(c.saved)+"円"},
             {label:"月々の積立額",sub:null,key:"monthly",val:c.monthly,min:0,max:100000, step:1000, disp:fmt(c.monthly)},
           ].map(sl=>(
             <div key={sl.key}>
@@ -509,18 +508,9 @@ function ChildSection({child:c,upd,onDelete,onOpenSupport}){
             </div>
           ))}
         </div>
-        {/* 自動計算の提案ボタン */}
-        {yrs>0&&need>0&&need!==c.monthly&&(
-          <div style={{background:"#f0f9ff",borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-            <span style={{fontSize:11,color:"#0369a1"}}>💡 今から積み立てると月<strong>{fmt(need)}</strong>で達成できます</span>
-            <button onClick={()=>upd(c.id,{monthly:need})} style={{fontSize:11,fontWeight:700,color:"white",background:"#0369a1",border:"none",borderRadius:7,padding:"4px 10px",cursor:"pointer",flexShrink:0}}>
-              この金額をセット
-            </button>
-          </div>
-        )}
         <div style={{marginBottom:16}}>
           <div style={{...clbl,marginBottom:4}}>運用利率（年利）</div>
-          <div style={{fontSize:10,color:"#a8a29e",marginBottom:7,lineHeight:1.6}}>NISAなどでインデックス投資した場合の参考値。過去20年の全世界株式（円建て）は年6〜7%程度ですが、円高局面でマイナスになる年もあり、将来も同じとは限りません。<br/>教育費のように使う時期が決まっているお金は、保守的に<strong>3%程度で見積もるのが安全</strong>です。<br/>※「現在の貯蓄額」と「月々の積立額」の両方が運用利率で増える前提。元本保証はありません。</div>
+          <div style={{fontSize:10,color:"#a8a29e",marginBottom:7,lineHeight:1.6}}>※ 教育費は<strong>3%が安全目安</strong>。5%超は楽観的（為替・市況で変動）。貯蓄額と積立額の両方が運用される前提・元本保証なし。</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[[0,"運用なし"],[0.3,"0.3%"],[1,"1%"],[3,"3%"],[5,"5%"]].map(([v,l])=>(
               <button key={v} onClick={()=>upd(c.id,{rate:v})}
@@ -541,22 +531,13 @@ function ChildSection({child:c,upd,onDelete,onOpenSupport}){
           </label>
         </div>
         <div style={{background:ok?"#f0fdf4":"#fef2f2",borderRadius:12,padding:"14px 16px",borderLeft:`4px solid ${ok?"#16a34a":"#dc2626"}`}}>
-          <div style={{fontWeight:800,fontSize:16,color:ok?"#15803d":"#b91c1c",marginBottom:4}}>
-            {ok?`✅ 想定どおり運用できれば 18歳時点で ${man(proj)}円`:`⚠️ ${man(-diff)}円 不足する見込み`}
+          <div style={{fontWeight:800,fontSize:16,color:ok?"#15803d":"#b91c1c",marginBottom:10}}>
+            {ok?`✅ 18歳時点で ${man(proj)}円 貯まる見込み`:`⚠️ ${man(-diff)}円 不足する見込み`}
           </div>
-          <div style={{fontSize:12,color:"#57534e",marginBottom:6}}>
-            {ok?`目標 ${man(target)}円 を ${man(diff)}円 上回ります`:`月積立を ${fmt(need)} にすると目標達成できます`}
-          </div>
-          {c.rate>0&&yrs>0&&(
-            <div style={{fontSize:11,color:"#78716c",marginBottom:12,lineHeight:1.5}}>
-              ※ 運用なし（預金のみ）だと積立元本 約{man(c.saved+c.monthly*12*yrs)}円
-            </div>
-          )}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
             {[
               {label:"積み立て目標",   val:man(target)+"円",color:"#dc2626"},
               {label:"18歳時点の予測", val:man(proj)+"円", color:ok?"#16a34a":"#dc2626"},
-              {label:"目標達成の月積立",val:fmt(need),      color:c.color},
             ].map((k,i)=>(
               <div key={i} style={{background:"rgba(0,0,0,.06)",borderRadius:9,padding:"10px 12px",borderLeft:`3px solid ${k.color}`}}>
                 <div style={{fontSize:11,color:"#78716c",marginBottom:4,fontWeight:600}}>{k.label}</div>
@@ -564,41 +545,29 @@ function ChildSection({child:c,upd,onDelete,onOpenSupport}){
               </div>
             ))}
           </div>
+          {yrs>0&&need>0&&(
+            <div style={{background:c.color,borderRadius:10,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,.85)",fontWeight:600,letterSpacing:".04em"}}>目標達成の月積立</div>
+                <div style={{fontSize:22,fontWeight:800,color:"white",marginTop:2,lineHeight:1.2}}>{fmt(need)}</div>
+              </div>
+              {need!==c.monthly&&(
+                <button onClick={()=>upd(c.id,{monthly:need})} style={{fontSize:12,fontWeight:700,color:c.color,background:"white",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",flexShrink:0}}>
+                  この金額をセット
+                </button>
+              )}
+            </div>
+          )}
           <div style={{fontSize:10,color:"#78716c",marginTop:8,lineHeight:1.6}}>
             ※ 入学金・受験費用は別途必要：国公立 約30万円／私立文系 約105万円／私立理系 約115万円
           </div>
-          {!ok&&(()=>{
-            // 月積立が現実離れの場合（5万円超）に逆算ビューを表示
-            const REALISTIC_MAX=50000;
-            const isUnrealistic=need>REALISTIC_MAX&&yrs>0;
-            const realisticProj=fv(c.saved,REALISTIC_MAX,c.rate,yrs);
-            const remainingShortage=Math.max(0,target-realisticProj);
-            return(
-              <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid #fecaca"}}>
-                {isUnrealistic&&(
-                  <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#9a3412",marginBottom:6}}>📌 現実的な選択肢として</div>
-                    <div style={{fontSize:12,color:"#7c2d12",lineHeight:1.7}}>
-                      家計から無理なく出せる月{fmt(REALISTIC_MAX)}を積み立てた場合：<br/>
-                      18歳時点で約<strong>{man(realisticProj)}円</strong>　残り約<strong>{man(remainingShortage)}円</strong>を奨学金・教育ローン・進路変更などで補う
-                    </div>
-                  </div>
-                )}
-                <div style={{fontSize:12,color:"#7f1d1d",lineHeight:1.7,marginBottom:10}}>
-                  焦らなくて大丈夫。今からできることは3つあります。<br/>
-                  <strong>①</strong> 月の積立額を上げる（家計の固定費から捻出）<br/>
-                  <strong>②</strong> 進路の組み合わせを変えてみる（高校までを公立に等）<br/>
-                  <strong>③</strong> 奨学金・教育ローンを「最終手段」として知っておく
-                </div>
-                <div style={{fontSize:11,color:"#78716c",lineHeight:1.6,marginBottom:10,padding:"8px 10px",background:"rgba(0,0,0,.04)",borderRadius:6}}>
-                  ⚠️ 奨学金・教育ローンは<strong>借金</strong>です。返済する人（子・親）と時期を必ず家族で確認してから使ってください。
-                </div>
-                <button onClick={onOpenSupport} style={{fontSize:12,fontWeight:700,color:"white",background:"#dc2626",border:"none",borderRadius:8,padding:"7px 16px",cursor:"pointer"}}>
-                  支援制度を見る →
-                </button>
-              </div>
-            );
-          })()}
+          {!ok&&(
+            <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid #fecaca"}}>
+              <button onClick={onOpenSupport} style={{fontSize:13,fontWeight:700,color:"white",background:"#dc2626",border:"none",borderRadius:8,padding:"9px 18px",cursor:"pointer"}}>
+                奨学金・支援制度を見る →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -850,12 +819,36 @@ function YearlyPlan({children}){
   const thS={padding:"9px 8px",fontSize:11,fontWeight:700,color:"#78716c",borderBottom:"2px solid #e5e0d8",textAlign:"right",whiteSpace:"nowrap",background:"#fafaf8"};
   const tdS={padding:"10px 8px",fontSize:13,textAlign:"right",borderBottom:"1px solid #f0ece6",whiteSpace:"nowrap",verticalAlign:"middle"};
 
+  // ピーク年TOP3を抽出
+  const peakYears=[...rows].filter(r=>r.schoolSum>0).sort((a,b)=>b.schoolSum-a.schoolSum).slice(0,3);
+
   return(
-    <div style={{display:"grid",gap:10}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-  
-      </div>
-      {/* 集計レンジ選択 */}
+    <div style={{display:"grid",gap:12}}>
+      {peakYears.length>0&&(
+        <div style={{background:"#fef2f2",borderRadius:14,padding:"14px 16px",border:"1px solid #fecaca"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#b91c1c",marginBottom:10,letterSpacing:".05em"}}>📌 家計のピーク年 TOP3</div>
+          <div style={{display:"grid",gap:6}}>
+            {peakYears.map((r,i)=>{
+              const ages=r.detail.filter(d=>d.schoolAnnual>0||d.shiokuriAnnual>0).map(d=>{
+                const sl=d.stage?.label||"";
+                return `${d.name}${d.age>=0?d.age+"歳":"妊娠中"}・${sl}`;
+              }).join(" ／ ");
+              return(
+                <div key={r.yr} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"8px 0",borderTop:i>0?"1px solid #fecaca":"none"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#1c1917"}}>{i+1}位　{r.yr}年</div>
+                    <div style={{fontSize:11,color:"#78716c",marginTop:2,lineHeight:1.4}}>{ages}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:18,fontWeight:800,color:"#dc2626",lineHeight:1.1}}>{man(r.schoolSum)}円</div>
+                    <div style={{fontSize:10,color:"#a8a29e"}}>年間</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
             <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",borderRadius:14,boxShadow:"0 1px 4px rgba(0,0,0,.07)"}}>
         <table style={{width:"100%",borderCollapse:"collapse",background:"white"}}>
           <thead>
@@ -933,22 +926,20 @@ function YearlyPlan({children}){
                       {/* 積立バッジ（大学在学中） */}
                       {d.uniCheck&&(()=>{
                         const ok=d.uniCheck.proj>=d.uniCheck.target;
+                        const shortage=Math.max(0,d.uniCheck.target-d.uniCheck.proj);
                         if(d.uniCheck.isEntry){
                           return(
-                            <div style={{marginTop:4,fontSize:10,fontWeight:700,color:"white",background:ok?"#5a7a3a":"#a83a2c",borderRadius:3,padding:"4px 10px",lineHeight:1.5}}>
-                              {ok?"○　積立 達成":"△　積立 不足"}
-                              <div style={{fontSize:9,fontWeight:400,opacity:0.9}}>
-                                目標{man(d.uniCheck.target)} → 予測{man(d.uniCheck.proj)}円
-                              </div>
-                              <div style={{fontSize:9,fontWeight:400,opacity:0.85}}>
-                                ※ この先4年間の学費に充てていきます
+                            <div style={{marginTop:4,fontSize:11,fontWeight:700,color:"white",background:ok?"#16a34a":"#dc2626",borderRadius:6,padding:"5px 10px",lineHeight:1.4}}>
+                              {ok?"✅ 準備OK":`準備不足 約${man(shortage)}円`}
+                              <div style={{fontSize:9,fontWeight:400,opacity:0.9,marginTop:2}}>
+                                目標{man(d.uniCheck.target)}／予測{man(d.uniCheck.proj)}円
                               </div>
                             </div>
                           );
                         } else {
                           return(
-                            <div style={{marginTop:4,fontSize:10,fontWeight:700,color:ok?"#3d5524":"#7c2a1f",background:ok?"#f3f7f0":"#fbf2f0",borderRadius:3,padding:"3px 10px",borderLeft:`2px solid ${ok?"#5a7a3a":"#a83a2c"}`}}>
-                              {ok?"○　積立完了":"△　積立不足で入学"}
+                            <div style={{marginTop:4,fontSize:10,fontWeight:700,color:ok?"#15803d":"#b91c1c",background:ok?"#f0fdf4":"#fef2f2",borderRadius:6,padding:"4px 10px",borderLeft:`2px solid ${ok?"#16a34a":"#dc2626"}`}}>
+                              {ok?"✅ 準備OK":"準備不足"}
                             </div>
                           );
                         }
